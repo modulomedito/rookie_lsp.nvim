@@ -8,7 +8,7 @@ Using [lazy.nvim](https://github.com/folke/lazy.nvim):
 
 ```lua
 {
-    "rookie_lsp.nvim", -- Replace with actual repo path if needed
+    "modulomedito/rookie_lsp.nvim", -- Replace with actual repo path if needed
     dependencies = {
         "neovim/nvim-lspconfig",
         {
