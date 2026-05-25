@@ -1,0 +1,183 @@
+local M = {}
+
+function M.setup(opts)
+    opts = opts or {}
+
+    -- Global variable to control enabling LSP
+    if vim.g.rookie_toys_lsp_enable == false then
+        return
+    end
+
+    -- 1. Setup Commands & Keymaps
+    require("rookie_lsp.commands").setup()
+    require("rookie_lsp.keymaps").setup()
+
+    -- 2. Define Servers
+    local servers = {
+        stylua = {},
+        clangd = {
+            cmd = {
+                "clangd",
+                "--background-index",
+                "--clang-tidy",
+                "--header-insertion=iwyu",
+                "--completion-style=detailed",
+                "--function-arg-placeholders",
+                "--fallback-style=llvm",
+            },
+            init_options = {
+                usePlaceholders = true,
+                completeUnimported = true,
+                clangdFileStatus = true,
+            },
+        },
+        pyright = {},
+        rust_analyzer = {},
+        jsonls = {},
+        marksman = {},
+        lua_ls = {
+            on_init = function(client)
+                if client.workspace_folders then
+                    local path = client.workspace_folders[1].name
+                    if
+                        path ~= vim.fn.stdpath("config")
+                        and (
+                            vim.uv.fs_stat(path .. "/.luarc.json")
+                            or vim.uv.fs_stat(path .. "/.luarc.jsonc")
+                        )
+                    then
+                        return
+                    end
+                end
+                client.config.settings.Lua =
+                    vim.tbl_deep_extend("force", client.config.settings.Lua, {
+                        runtime = {
+                            version = "LuaJIT",
+                            path = { "lua/?.lua", "lua/?/init.lua" },
+                        },
+                        workspace = {
+                            checkThirdParty = false,
+                            library = vim.tbl_extend(
+                                "force",
+                                vim.api.nvim_get_runtime_file("", true),
+                                { "${3rd}/luv/library", "${3rd}/busted/library" }
+                            ),
+                        },
+                    })
+            end,
+            settings = {
+                Lua = {},
+            },
+        },
+    }
+
+    -- 3. Mason Setup
+    local has_mason, mason = pcall(require, "mason")
+    if has_mason then
+        mason.setup(opts.mason or {})
+    end
+
+    local has_mason_tool, mason_tool = pcall(require, "mason-tool-installer")
+    if has_mason_tool then
+        local ensure_installed = vim.tbl_keys(servers or {})
+        mason_tool.setup({
+            ensure_installed = ensure_installed,
+        })
+    end
+
+    -- 4. Diagnostic Config
+    vim.diagnostic.config({
+        update_in_insert = false,
+        severity_sort = true,
+        float = { border = "rounded", source = "if_many" },
+        underline = { severity = { min = vim.diagnostic.severity.WARN } },
+        virtual_text = true,
+        virtual_lines = false,
+        jump = {
+            on_jump = function(_, bufnr)
+                vim.diagnostic.open_float({
+                    bufnr = bufnr,
+                    scope = "cursor",
+                    focus = false,
+                })
+            end,
+        },
+    })
+
+    -- 5. LspAttach Autocmd
+    vim.api.nvim_create_autocmd("LspAttach", {
+        group = vim.api.nvim_create_augroup("RookieLspConfig", { clear = true }),
+        callback = function(ev)
+            local client = vim.lsp.get_client_by_id(ev.data.client_id)
+            local bufnr = ev.buf
+
+            -- Disable diagnostics by default for this buffer (from lspcfg2.lua)
+            vim.diagnostic.enable(false, { bufnr = bufnr })
+
+            -- Disable semantic tokens by default for this buffer (from lspcfg2.lua)
+            vim.schedule(function()
+                if not vim.api.nvim_buf_is_valid(bufnr) then
+                    return
+                end
+                if vim.lsp.semantic_tokens and vim.lsp.semantic_tokens.enable then
+                    vim.lsp.semantic_tokens.enable(false, { bufnr = bufnr })
+                else
+                    if client and client.server_capabilities.semanticTokensProvider then
+                        vim.lsp.semantic_tokens.stop(bufnr, client.id)
+                    end
+                end
+                vim.b[bufnr].semantic_tokens_enabled = false
+            end)
+
+            -- Keymaps
+            require("rookie_lsp.keymaps").on_attach(client, bufnr)
+
+            -- Highlighting
+            if client and client:supports_method("textDocument/documentHighlight", bufnr) then
+                local highlight_augroup =
+                    vim.api.nvim_create_augroup("rookie-lsp-highlight", { clear = false })
+                vim.api.nvim_create_autocmd({ "CursorHold", "CursorHoldI" }, {
+                    buffer = bufnr,
+                    group = highlight_augroup,
+                    callback = vim.lsp.buf.document_highlight,
+                })
+
+                vim.api.nvim_create_autocmd({ "CursorMoved", "CursorMovedI" }, {
+                    buffer = bufnr,
+                    group = highlight_augroup,
+                    callback = vim.lsp.buf.clear_references,
+                })
+
+                vim.api.nvim_create_autocmd("LspDetach", {
+                    group = vim.api.nvim_create_augroup("rookie-lsp-detach", { clear = true }),
+                    callback = function(ev2)
+                        vim.lsp.buf.clear_references()
+                        vim.api.nvim_clear_autocmds({
+                            group = "rookie-lsp-highlight",
+                            buffer = ev2.buf,
+                        })
+                    end,
+                })
+            end
+        end,
+    })
+
+    -- 6. Enable Servers
+    if vim.lsp.config then
+        -- Neovim 0.11+ style
+        for name, config in pairs(servers) do
+            vim.lsp.config(name, config)
+            vim.lsp.enable(name)
+        end
+    else
+        -- Fallback for older Neovim versions using nvim-lspconfig
+        local has_lspconfig, lspconfig = pcall(require, "lspconfig")
+        if has_lspconfig then
+            for name, config in pairs(servers) do
+                lspconfig[name].setup(config)
+            end
+        end
+    end
+end
+
+return M
