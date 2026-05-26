@@ -35,29 +35,39 @@ function M.setup(opts)
     }
 
     for _, method in ipairs(jump_methods) do
-        local orig_handler = vim.lsp.handlers[method]
+        local default_handler = vim.lsp.handlers[method]
         vim.lsp.handlers[method] = function(err, result, ctx, config)
+            -- 1. Disable undofile before jumping to prevent E824
+            local original_undofile = vim.o.undofile
+            vim.o.undofile = false
+
+            -- 2. Define a function to restore undofile setting
+            local function restore()
+                -- We use schedule to ensure this runs AFTER the jump (which is often scheduled)
+                vim.schedule(function()
+                    vim.o.undofile = original_undofile
+                end)
+            end
+
+            -- 3. Execute the handler (with error catching for extra safety)
             local ok, handle_err = pcall(function()
-                if orig_handler then
-                    return orig_handler(err, result, ctx, config)
+                if default_handler then
+                    return default_handler(err, result, ctx, config)
                 end
-                -- Fallback to default handler if not specifically set
-                return vim.lsp.with(vim.lsp.handlers[method], {})(err, result, ctx, config)
+                -- If no specific handler was set, we should avoid calling ourselves.
+                -- However, usually vim.lsp.handlers[method] is already populated by Neovim defaults.
+                -- If it's not, we just return.
+                return
             end)
 
+            -- 4. Restore the setting
+            restore()
+
             if not ok then
+                -- If it's still E824 despite disabling undofile, or another error, notify user
                 if tostring(handle_err):match("E824") then
-                    local original_undofile = vim.opt.undofile:get()
-                    vim.opt.undofile = false
-                    -- Retry the jump with undofile disabled
-                    if orig_handler then
-                        orig_handler(err, result, ctx, config)
-                    else
-                        vim.lsp.with(vim.lsp.handlers[method], {})(err, result, ctx, config)
-                    end
-                    vim.opt.undofile = original_undofile
                     vim.notify(
-                        "rookie_lsp: Suppressed E824 (Incompatible undo file) by temporarily disabling undofile",
+                        "rookie_lsp: E824 detected during " .. method .. ". The jump was attempted.",
                         vim.log.levels.WARN
                     )
                 else

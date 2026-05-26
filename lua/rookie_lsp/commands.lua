@@ -46,6 +46,26 @@ function M.stop_lsp(lsp_name)
     print("Stopped " .. lsp_name)
 end
 
+function M.clean_undo_files()
+    local undo_dir = vim.fn.expand(vim.o.undodir:split(",")[1])
+    if vim.fn.isdirectory(undo_dir) == 0 then
+        print("Undo directory not found: " .. undo_dir)
+        return
+    end
+
+    local count = 0
+    -- This is a bit aggressive but helps when files are corrupted
+    local choice = vim.fn.confirm("Delete ALL undo files in " .. undo_dir .. "?", "&Yes\n&No", 2)
+    if choice == 1 then
+        local files = vim.fn.glob(undo_dir .. "/*", false, true)
+        for _, file in ipairs(files) do
+            vim.fn.delete(file)
+            count = count + 1
+        end
+        print("Deleted " .. count .. " undo files.")
+    end
+end
+
 function M.setup()
     -- Stop specific lsp
     vim.api.nvim_create_user_command("RkLspStop", function(opts)
@@ -61,6 +81,13 @@ function M.setup()
             return names
         end,
         desc = "Stop a specific LSP client",
+    })
+
+    -- Clean undo files
+    vim.api.nvim_create_user_command("RkLspCleanUndo", function()
+        M.clean_undo_files()
+    end, {
+        desc = "Clean corrupted undo files in undodir",
     })
 end
 
