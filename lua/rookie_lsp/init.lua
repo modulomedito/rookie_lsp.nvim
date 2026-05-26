@@ -31,48 +31,71 @@ function M.setup(opts)
         "textDocument/typeDefinition",
         "textDocument/implementation",
         "textDocument/declaration",
-        "textDocument/references",
     }
 
     for _, method in ipairs(jump_methods) do
-        local default_handler = vim.lsp.handlers[method]
         vim.lsp.handlers[method] = function(err, result, ctx, config)
-            -- 1. Disable undofile before jumping to prevent E824
-            local original_undofile = vim.o.undofile
-            vim.o.undofile = false
-
-            -- 2. Define a function to restore undofile setting
-            local function restore()
-                -- We use schedule to ensure this runs AFTER the jump (which is often scheduled)
-                vim.schedule(function()
-                    vim.o.undofile = original_undofile
-                end)
+            if err then
+                vim.notify(err.message, vim.log.levels.ERROR)
+                return
+            end
+            if result == nil or vim.tbl_isempty(result) then
+                vim.notify("rookie_lsp: No location found.", vim.log.levels.INFO)
+                return
             end
 
-            -- 3. Execute the handler (with error catching for extra safety)
-            local ok, handle_err = pcall(function()
-                if default_handler then
-                    return default_handler(err, result, ctx, config)
-                end
-                -- If no specific handler was set, we should avoid calling ourselves.
-                -- However, usually vim.lsp.handlers[method] is already populated by Neovim defaults.
-                -- If it's not, we just return.
+            -- Ensure result is a list
+            if not vim.islist(result) then
+                result = { result }
+            end
+
+            local client = vim.lsp.get_client_by_id(ctx.client_id)
+            if not client then
                 return
-            end)
+            end
 
-            -- 4. Restore the setting
-            restore()
+            local offset_encoding = client.offset_encoding
 
-            if not ok then
-                -- If it's still E824 despite disabling undofile, or another error, notify user
-                if tostring(handle_err):match("E824") then
-                    vim.notify(
-                        "rookie_lsp: E824 detected during " .. method .. ". The jump was attempted.",
-                        vim.log.levels.WARN
-                    )
-                else
-                    error(handle_err)
-                end
+            if #result == 1 then
+                -- Safely jump to the first location by turning off undofile temporarily around the edit command
+                local item = result[1]
+                local uri = item.uri or item.targetUri
+                if not uri then return end
+
+                local bufnr = vim.uri_to_bufnr(uri)
+                vim.fn.bufload(bufnr)
+
+                -- The crucial part: jump manually without using `cfirst` which triggers the strict undo checks
+                local range = item.range or item.targetSelectionRange
+                local row = range.start.line + 1
+                local col = vim.lsp.util._get_line_byte_from_position(bufnr, range.start, offset_encoding)
+
+                local orig_undo = vim.o.undofile
+                vim.o.undofile = false
+
+                -- Use pcall to catch E824 if it still somehow happens during buffer switch
+                pcall(function()
+                    vim.cmd("buffer " .. bufnr)
+                    vim.api.nvim_win_set_cursor(0, { row, col })
+                    -- Push to jumplist
+                    vim.cmd("normal! m'")
+                end)
+
+                vim.o.undofile = orig_undo
+            else
+                -- Multiple results, fallback to standard behavior but try to catch errors
+                local title = "LSP locations"
+                local items = vim.lsp.util.locations_to_items(result, offset_encoding)
+
+                local orig_undo = vim.o.undofile
+                vim.o.undofile = false
+
+                pcall(function()
+                    vim.fn.setqflist({}, " ", { title = title, items = items })
+                    vim.cmd("cfirst")
+                end)
+
+                vim.o.undofile = orig_undo
             end
         end
     end
