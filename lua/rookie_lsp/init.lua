@@ -13,15 +13,58 @@ function M.setup(opts)
     require("rookie_lsp.keymaps").setup()
 
     -- Globally suppress clangd -32602 errors for documentHighlight
-    local orig_handler = vim.lsp.handlers["textDocument/documentHighlight"]
+    local orig_highlight_handler = vim.lsp.handlers["textDocument/documentHighlight"]
     vim.lsp.handlers["textDocument/documentHighlight"] = function(err, result, ctx, config)
         if err and err.code == -32602 then
             return
         end
-        if orig_handler then
-            return orig_handler(err, result, ctx, config)
+        if orig_highlight_handler then
+            return orig_highlight_handler(err, result, ctx, config)
         end
         return vim.lsp.with(vim.lsp.handlers.document_highlight, {})(err, result, ctx, config)
+    end
+
+    -- Globally suppress E824 (Incompatible undo file) for jump-to-definition methods
+    -- This happens when jumping to a file that has a stale/corrupt undo file in the undo directory.
+    local jump_methods = {
+        "textDocument/definition",
+        "textDocument/typeDefinition",
+        "textDocument/implementation",
+        "textDocument/declaration",
+        "textDocument/references",
+    }
+
+    for _, method in ipairs(jump_methods) do
+        local orig_handler = vim.lsp.handlers[method]
+        vim.lsp.handlers[method] = function(err, result, ctx, config)
+            local ok, handle_err = pcall(function()
+                if orig_handler then
+                    return orig_handler(err, result, ctx, config)
+                end
+                -- Fallback to default handler if not specifically set
+                return vim.lsp.with(vim.lsp.handlers[method], {})(err, result, ctx, config)
+            end)
+
+            if not ok then
+                if tostring(handle_err):match("E824") then
+                    local original_undofile = vim.opt.undofile:get()
+                    vim.opt.undofile = false
+                    -- Retry the jump with undofile disabled
+                    if orig_handler then
+                        orig_handler(err, result, ctx, config)
+                    else
+                        vim.lsp.with(vim.lsp.handlers[method], {})(err, result, ctx, config)
+                    end
+                    vim.opt.undofile = original_undofile
+                    vim.notify(
+                        "rookie_lsp: Suppressed E824 (Incompatible undo file) by temporarily disabling undofile",
+                        vim.log.levels.WARN
+                    )
+                else
+                    error(handle_err)
+                end
+            end
+        end
     end
 
     -- 2. Define Servers
