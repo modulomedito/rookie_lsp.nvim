@@ -12,6 +12,18 @@ function M.setup(opts)
     require("rookie_lsp.commands").setup()
     require("rookie_lsp.keymaps").setup()
 
+    -- Globally suppress clangd -32602 errors for documentHighlight
+    local orig_handler = vim.lsp.handlers["textDocument/documentHighlight"]
+    vim.lsp.handlers["textDocument/documentHighlight"] = function(err, result, ctx, config)
+        if err and err.code == -32602 then
+            return
+        end
+        if orig_handler then
+            return orig_handler(err, result, ctx, config)
+        end
+        return vim.lsp.with(vim.lsp.handlers.document_highlight, {})(err, result, ctx, config)
+    end
+
     -- 2. Define Servers
     local servers = {
         stylua = {},
