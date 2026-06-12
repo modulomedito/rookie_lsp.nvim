@@ -60,7 +60,9 @@ function M.setup(opts)
                 -- Safely jump to the first location by turning off undofile temporarily around the edit command
                 local item = result[1]
                 local uri = item.uri or item.targetUri
-                if not uri then return end
+                if not uri then
+                    return
+                end
 
                 local bufnr = vim.uri_to_bufnr(uri)
                 vim.fn.bufload(bufnr)
@@ -68,7 +70,8 @@ function M.setup(opts)
                 -- The crucial part: jump manually without using `cfirst` which triggers the strict undo checks
                 local range = item.range or item.targetSelectionRange
                 local row = range.start.line + 1
-                local col = vim.lsp.util._get_line_byte_from_position(bufnr, range.start, offset_encoding)
+                local col =
+                    vim.lsp.util._get_line_byte_from_position(bufnr, range.start, offset_encoding)
 
                 local orig_undo = vim.o.undofile
                 vim.o.undofile = false
@@ -160,18 +163,18 @@ function M.setup(opts)
     }
 
     -- 3. Mason Setup
-    local has_mason, mason = pcall(require, "mason")
-    if has_mason then
-        mason.setup(opts.mason or {})
-    end
-
-    local has_mason_tool, mason_tool = pcall(require, "mason-tool-installer")
-    if has_mason_tool then
-        local ensure_installed = vim.tbl_keys(servers or {})
-        mason_tool.setup({
-            ensure_installed = ensure_installed,
-        })
-    end
+    -- local has_mason, mason = pcall(require, "mason")
+    -- if has_mason then
+    --     mason.setup(opts.mason or {})
+    -- end
+    --
+    -- local has_mason_tool, mason_tool = pcall(require, "mason-tool-installer")
+    -- if has_mason_tool then
+    --     local ensure_installed = vim.tbl_keys(servers or {})
+    --     mason_tool.setup({
+    --         ensure_installed = ensure_installed,
+    --     })
+    -- end
 
     -- 4. Diagnostic Config
     vim.diagnostic.config({
