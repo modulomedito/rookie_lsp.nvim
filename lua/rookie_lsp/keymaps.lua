@@ -56,7 +56,7 @@ function M.on_attach(client, bufnr)
     map("<leader>ca", vim.lsp.buf.code_action, "[C]ode [A]ction", { "n", "v" })
     map("gr", vim.lsp.buf.references, "[G]oto [R]eferences")
 
-    map("<leader>f", function()
+    map("<leader>fo", function()
         local ok, conform = pcall(require, "conform")
         if ok then
             conform.format({ lsp_fallback = true, async = true })
