@@ -43,7 +43,10 @@ function M.on_attach(client, bufnr)
     -- From lspcfg2.lua (adding unique ones or alternatives)
     map("gD", vim.lsp.buf.declaration, "Goto [D]eclaration")
     map("gd", function()
-        local params = vim.lsp.util.make_position_params()
+        local params = vim.lsp.util.make_position_params(
+            bufnr,
+            client.offset_encoding or "utf-16"
+        )
         vim.lsp.buf_request(bufnr, "textDocument/definition", params, function(err, result)
             if err or not result or vim.tbl_isempty(result) then
                 vim.cmd([[normal! <C-]>]])
