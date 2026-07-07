@@ -46,7 +46,7 @@ function M.on_attach(client, bufnr)
         vim.lsp.buf.definition({
             handler = function(_, result)
                 if not result or vim.tbl_isempty(result) then
-                    vim.cmd([[normal! <C-]>]])
+                    pcall(vim.cmd, "tag " .. vim.fn.expand("<cword>"))
                     return
                 end
                 vim.lsp.util.jump_to_location(
