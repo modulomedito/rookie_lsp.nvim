@@ -42,7 +42,20 @@ function M.on_attach(client, bufnr)
 
     -- From lspcfg2.lua (adding unique ones or alternatives)
     map("gD", vim.lsp.buf.declaration, "Goto [D]eclaration")
-    map("gd", vim.lsp.buf.definition, "Goto [d]efinition")
+    map("gd", function()
+        vim.lsp.buf.definition({
+            handler = function(_, result)
+                if not result or vim.tbl_isempty(result) then
+                    vim.cmd([[normal! <C-]>]])
+                    return
+                end
+                vim.lsp.util.jump_to_location(
+                    result,
+                    client.offset_encoding or "utf-16"
+                )
+            end,
+        })
+    end, "Goto [d]efinition")
     map("gh", vim.lsp.buf.hover, "[H]over documentation")
     map("gi", vim.lsp.buf.implementation, "Goto [i]mplementation")
     map("gS", vim.lsp.buf.signature_help, "[S]ignature help")
