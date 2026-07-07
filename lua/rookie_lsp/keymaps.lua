@@ -44,7 +44,7 @@ function M.on_attach(client, bufnr)
     map("gD", vim.lsp.buf.declaration, "Goto [D]eclaration")
     map("gd", function()
         local params = vim.lsp.util.make_position_params(
-            bufnr,
+            0,
             client.offset_encoding or "utf-16"
         )
         vim.lsp.buf_request(bufnr, "textDocument/definition", params, function(err, result)
