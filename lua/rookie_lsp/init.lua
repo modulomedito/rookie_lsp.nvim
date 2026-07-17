@@ -202,6 +202,15 @@ function M.setup(opts)
             local client = vim.lsp.get_client_by_id(ev.data.client_id)
             local bufnr = ev.buf
 
+            -- Disable lua_ls for xmake.lua files
+            if client and client.name == "lua_ls" then
+                local bufname = vim.api.nvim_buf_get_name(bufnr)
+                if bufname:match("xmake%.lua$") then
+                    vim.lsp.stop_client(client.id)
+                    return
+                end
+            end
+
             -- Disable diagnostics by default for this buffer (from lspcfg2.lua)
             vim.diagnostic.enable(false, { bufnr = bufnr })
 
