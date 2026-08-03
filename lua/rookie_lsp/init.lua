@@ -212,7 +212,10 @@ function M.setup(opts)
             end
 
             -- Disable diagnostics by default for this buffer (from lspcfg2.lua)
-            vim.diagnostic.enable(false, { bufnr = bufnr })
+            -- vim.diagnostic.enable(false, { bufnr = bufnr })
+
+            -- Enable diagnostics by default for this buffer (from lspcfg2.lua)
+            vim.diagnostic.enable(true, { bufnr = bufnr })
 
             -- Disable semantic tokens by default for this buffer (from lspcfg2.lua)
             vim.schedule(function()
