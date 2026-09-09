@@ -4,7 +4,7 @@ function M.setup()
     -- Global mappings
     vim.keymap.set(
         "n",
-        "<leader>e",
+        "<leader>lspe",
         vim.diagnostic.open_float,
         { desc = "LSP: Show diagnostic error" }
     )
@@ -18,7 +18,7 @@ function M.setup()
     )
 
     -- Toggle semantic highlight and diagnostics
-    vim.keymap.set("n", "<leader>hld", function()
+    vim.keymap.set("n", "<leader>lspd", function()
         require("rookie_lsp.commands").toggle_highlight_diagnostics()
     end, {
         desc = "Toggle [h]igh[l]ighting semantic & [d]iagnostics",
