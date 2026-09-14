@@ -53,7 +53,7 @@ function M.on_attach(client, bufnr)
     end, "Workspace [L]ist folders")
     map("<leader>D", vim.lsp.buf.type_definition, "Type [D]efinition")
     map("<leader>rn", vim.lsp.buf.rename, "[R]e[n]ame symbol")
-    map("<leader>ca", vim.lsp.buf.code_action, "[C]ode [A]ction", { "n", "v" })
+    map("<leader>gca", vim.lsp.buf.code_action, "[C]ode [A]ction", { "n", "v" })
     map("gr", vim.lsp.buf.references, "[G]oto [R]eferences")
 
     map("<leader>fo", function()
